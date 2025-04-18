@@ -1,0 +1,88 @@
+import * as XLSX from 'xlsx';
+// 注意：更好的样式支持请使用 xlsx-js-style 库
+// import * as XLSX from 'xlsx-js-style';
+
+/**
+ * 将HTML表格转换为Excel文件并下载
+ * @param {string} tableHtml - 表格的HTML字符串
+ * @param {string} fileName - 下载的文件名（不含扩展名）
+ * @param {object} options - 配置选项
+ * @returns {Promise<void>}
+ */
+export const htmlTableToExcel = (tableHtml, fileName, options = {}) => {
+  return new Promise((resolve, reject) => {
+    try {
+      // 使用浏览器DOM API解析HTML
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(tableHtml, 'text/html');
+      const table = doc.querySelector('table');
+      
+      if (!table) {
+        reject(new Error('无效的表格HTML'));
+        return;
+      }
+      
+      // 创建工作簿和工作表
+      const wb = XLSX.utils.book_new();
+      
+      // 获取表格行
+      const rows = table.querySelectorAll('tr');
+      if (rows.length === 0) {
+        reject(new Error('表格没有行'));
+        return;
+      }
+      
+      // 数据和样式映射
+      const data = [];
+      const merges = [];
+      const styles = {};
+      const colWidths = [];
+      const rowHeights = [];
+      
+      // 当前记录的行数（用于处理rowspan）
+      let excelRowIndex = 0;
+      
+      // 初始化列宽数组
+      // 先计算表格的列数（考虑colspan）
+      let maxCols = 0;
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('th, td');
+        let colCount = 0;
+        cells.forEach(cell => {
+          const colspan = parseInt(cell.getAttribute('colspan') || 1);
+          colCount += colspan;
+        });
+        maxCols = Math.max(maxCols, colCount);
+      });
+      
+      // 初始化列宽
+      for (let i = 0; i < maxCols; i++) {
+        colWidths.push({ wch: 10 }); // 默认列宽
+      }
+      
+      // 维护一个单元格占用情况的矩阵
+      const cellMatrix = [];
+      
+      // 处理每一行
+      rows.forEach((row, physicalRowIndex) => {
+        // 获取行高
+        const height = getComputedHeight(row);
+        rowHeights.push({ hpt: height });
+        
+        // 如果该行已经被占用（因为前面的rowspan），那么我们需要找到下一个可用行
+        while (cellMatrix[excelRowIndex] && cellMatrix[excelRowIndex].some(cell => cell === true)) {
+          excelRowIndex++;
+        }
+        
+        // 确保矩阵有足够的行
+        if (!cellMatrix[excelRowIndex]) {
+          cellMatrix[excelRowIndex] = Array(maxCols).fill(false);
+        }
+        
+        const cells = row.querySelectorAll('th, td');
+        const dataRow = [];
+        let excelColIndex = 0;
+        
+        // 处理每个单元格
+        cells.forEach((cell, cellIndex) => {
+          // 找到下一个未占用的列
