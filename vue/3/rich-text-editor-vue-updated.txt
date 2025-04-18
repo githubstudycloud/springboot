@@ -1,0 +1,272 @@
+<template>
+  <div class="editor-container">
+    <div class="editor-header">
+      <button class="btn" @click="loadSampleTable('simple')">插入简单表格</button>
+      <button class="btn" @click="loadSampleTable('merged')">插入合并单元格表格</button>
+      <button class="btn" @click="loadSampleTable('styled')">插入样式表格</button>
+      <button class="btn" @click="loadSampleTable('complex')">插入复杂表格</button>
+      <button class="btn" @click="identifyAndExportTables">识别并导出表格</button>
+    </div>
+    
+    <div class="editor-wrapper">
+      <div style="border: 1px solid #ccc">
+        <Toolbar
+          style="border-bottom: 1px solid #ccc"
+          :editor="editor"
+          :defaultConfig="toolbarConfig"
+          :mode="mode"
+        />
+        <Editor
+          style="height: 400px; overflow-y: hidden;"
+          v-model="content"
+          :defaultConfig="editorConfig"
+          :mode="mode"
+          @onCreated="onCreated"
+        />
+      </div>
+    </div>
+    
+    <div v-if="tablesFound" class="tables-container">
+      <h3>发现的表格：</h3>
+      <div v-for="(table, index) in foundTables" :key="index" class="table-item">
+        <div class="table-preview" v-html="table.preview"></div>
+        <button class="btn export-btn" @click="exportTableToExcel(table.html, `表格${index+1}`)">
+          导出表格 {{index+1}} 为Excel
+        </button>
+      </div>
+    </div>
+    
+    <div class="export-info" v-if="exportInfo">
+      <p>{{ exportInfo }}</p>
+    </div>
+  </div>
+</template>
+
+<script>
+import { Editor, Toolbar } from '@wangeditor/editor-for-vue';
+import '@wangeditor/editor/dist/css/style.css';
+import { htmlTableToExcel } from '@/utils/htmlTableToExcel';
+import { getSampleTable } from '@/utils/sampleData';
+
+export default {
+  name: 'RichTextEditor',
+  components: { Editor, Toolbar },
+  data() {
+    return {
+      editor: null,
+      content: '',
+      mode: 'default', // 或 'simple'
+      editorConfig: {
+        placeholder: '请输入内容...',
+        MENU_CONF: {
+          // 可以修改各个菜单的配置，包括表格
+          tableModule: {
+            // 表格配置
+          }
+        }
+      },
+      toolbarConfig: {
+        // 工具栏配置
+        toolbarKeys: [
+          'bold',
+          'italic',
+          'underline',
+          'through',
+          'color',
+          'bgColor',
+          'clearStyle',
+          'insertLink',
+          'bulletedList',
+          'numberedList',
+          'justifyLeft',
+          'justifyCenter',
+          'justifyRight',
+          '|',
+          'insertTable',  // 插入表格
+          'codeBlock'
+        ]
+      },
+      foundTables: [],
+      tablesFound: false,
+      exportInfo: ''
+    };
+  },
+  methods: {
+    onCreated(editor) {
+      this.editor = Object.seal(editor); // 记录编辑器实例，不能直接修改
+    },
+    loadSampleTable(type = 'simple') {
+      // 插入示例表格
+      if (!this.editor) {
+        this.exportInfo = '编辑器未初始化，请稍后再试';
+        return;
+      }
+      
+      // 获取对应类型的示例表格
+      const tableHTML = getSampleTable(type);
+      
+      // 在编辑器中插入表格
+      this.editor.dangerouslyInsertHtml(tableHTML);
+      this.exportInfo = `已插入${this.getTableTypeName(type)}，可以点击"识别并导出表格"按钮`;
+    },
+    getTableTypeName(type) {
+      const typeNames = {
+        simple: '简单表格',
+        merged: '合并单元格表格',
+        styled: '样式表格',
+        complex: '复杂表格'
+      };
+      return typeNames[type] || '表格';
+    },
+    identifyAndExportTables() {
+      // 获取编辑器HTML内容
+      const editorContent = this.content || this.editor.getHtml();
+      
+      // 使用浏览器DOM API解析HTML
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(editorContent, 'text/html');
+      const tables = doc.querySelectorAll('table');
+      
+      if (tables.length === 0) {
+        this.exportInfo = '未找到表格，请先插入表格';
+        this.tablesFound = false;
+        this.foundTables = [];
+        return;
+      }
+      
+      // 清空之前的表格
+      this.foundTables = [];
+      
+      // 处理找到的每个表格
+      tables.forEach((table, index) => {
+        // 获取完整的表格HTML
+        const tableHTML = table.outerHTML;
+        
+        // 创建预览（仅显示前两行）
+        const tableClone = table.cloneNode(true);
+        const tbody = tableClone.querySelector('tbody');
+        if (tbody && tbody.rows.length > 2) {
+          // 保留表头和前两行，删除其余行
+          while (tbody.rows.length > 2) {
+            tbody.removeChild(tbody.rows[tbody.rows.length - 1]);
+          }
+          // 添加提示行
+          const tr = doc.createElement('tr');
+          const td = doc.createElement('td');
+          td.textContent = '... (更多行)';
+          td.colSpan = tableClone.rows[0].cells.length;
+          td.style.textAlign = 'center';
+          td.style.padding = '8px';
+          td.style.border = '1px solid #ddd';
+          tr.appendChild(td);
+          tbody.appendChild(tr);
+        }
+        
+        this.foundTables.push({
+          html: tableHTML,
+          preview: tableClone.outerHTML
+        });
+      });
+      
+      this.tablesFound = true;
+      this.exportInfo = `找到 ${tables.length} 个表格，点击"导出表格"按钮将其导出为Excel`;
+    },
+    exportTableToExcel(tableHtml, fileName) {
+      try {
+        // 使用工具函数导出表格
+        htmlTableToExcel(tableHtml, fileName)
+          .then(() => {
+            this.exportInfo = `表格已成功导出为 ${fileName}.xlsx`;
+          })
+          .catch(error => {
+            console.error('导出表格时出错:', error);
+            this.exportInfo = `导出表格时出错: ${error.message}`;
+          });
+      } catch (error) {
+        console.error('导出表格时出错:', error);
+        this.exportInfo = `导出表格时出错: ${error.message}`;
+      }
+    }
+  },
+  beforeDestroy() {
+    // 组件销毁时，及时销毁编辑器
+    if (this.editor == null) return;
+    this.editor.destroy();
+    this.editor = null;
+  }
+};
+</script>
+
+<style scoped>
+.editor-container {
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 30px;
+}
+
+.editor-header {
+  padding: 10px;
+  background-color: #f5f5f5;
+  border-bottom: 1px solid #ccc;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.editor-wrapper {
+  /* 编辑器容器样式 */
+}
+
+.btn {
+  background-color: #4CAF50;
+  border: none;
+  color: white;
+  padding: 8px 16px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 14px;
+  margin: 4px 2px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.btn:hover {
+  background-color: #45a049;
+}
+
+.tables-container {
+  margin-top: 20px;
+  padding: 15px;
+  border-top: 1px solid #eee;
+}
+
+.table-item {
+  margin-bottom: 20px;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  background-color: #f9f9f9;
+}
+
+.table-preview {
+  overflow-x: auto;
+  margin-bottom: 10px;
+}
+
+.export-btn {
+  background-color: #2196F3;
+}
+
+.export-btn:hover {
+  background-color: #0b7dda;
+}
+
+.export-info {
+  margin-top: 20px;
+  padding: 10px;
+  background-color: #e7f3fe;
+  border-left: 6px solid #2196F3;
+}
+</style>

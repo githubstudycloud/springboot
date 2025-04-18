@@ -1,0 +1,110 @@
+### 项目结构
+
+```
+vue-html-table-to-excel/
+├── public/
+│   └── index.html
+├── src/
+│   ├── assets/
+│   ├── components/
+│   │   └── RichTextEditor.vue  // 主要编辑器组件
+│   ├── utils/                  // 新增的工具目录
+│   │   ├── htmlTableToExcel.js // 表格导出工具
+│   │   └── sampleData.js       // 样本表格数据
+│   ├── App.vue
+│   └── main.js
+├── package.json
+└── vue.config.js
+```
+
+### 文件说明
+
+1. **RichTextEditor.vue**: 
+   - 使用 @wangeditor/editor-for-vue 实现富文本编辑功能
+   - 提供多种表格样本插入和导出功能
+
+2. **htmlTableToExcel.js**:
+   - 将HTML表格转换为Excel的工具函数
+   - 支持保留样式、合并单元格、列宽行高等
+
+3. **sampleData.js**:
+   - 提供多种示例表格数据
+   - 包括简单表格、合并单元格表格、样式表格、复杂表格
+
+4. **xlsx-style-installer.js**:
+   - 提供安装和配置xlsx-js-style的指导
+   - xlsx-js-style是支持样式导出的Excel库
+
+### 安装步骤
+
+1. **创建项目**:
+```bash
+vue create vue-html-table-to-excel
+cd vue-html-table-to-excel
+```
+
+2. **安装依赖**:
+```bash
+# 安装WangEditor和Excel导出相关依赖
+npm install @wangeditor/editor @wangeditor/editor-for-vue xlsx-js-style
+```
+
+3. **创建目录结构**:
+```bash
+mkdir -p src/utils src/components
+```
+
+4. **复制代码文件**:
+   - 将提供的代码复制到对应文件中
+   - 确保路径和导入语句正确
+
+5. **启动项目**:
+```bash
+npm run serve
+```
+
+### 使用说明
+
+1. **插入表格**:
+   - 点击工具栏上的四个按钮可插入不同类型的示例表格
+   - 也可以使用编辑器自带的表格插入功能创建表格
+
+2. **编辑表格**:
+   - 使用WangEditor的表格编辑功能修改表格
+   - 可以调整表格样式、合并单元格等
+
+3. **导出表格**:
+   - 点击"识别并导出表格"按钮识别编辑器中的表格
+   - 点击每个表格下方的"导出表格"按钮将表格导出为Excel
+
+### 功能特点
+
+1. **样式保留**:
+   - 导出Excel时保留HTML表格的样式
+   - 包括背景色、字体、对齐方式等
+
+2. **合并单元格支持**:
+   - 正确处理rowspan和colspan
+   - 在Excel中保持单元格合并状态
+
+3. **尺寸保留**:
+   - 尽可能保留原始表格的列宽和行高
+   - 自动计算合适的Excel列宽
+
+4. **多种表格样本**:
+   - 提供多种预设表格样式
+   - 便于测试不同类型表格的导出效果
+
+### 注意事项
+
+1. **样式兼容性**:
+   - 部分复杂CSS样式可能无法完全在Excel中复现
+   - 主要支持基本颜色、字体和对齐方式
+
+2. **导出大小限制**:
+   - 过大的表格可能导致性能问题
+   - 建议分批处理大量数据
+
+3. **浏览器兼容性**:
+   - 需要现代浏览器支持
+   - 主要在Chrome和Firefox中测
